@@ -9,12 +9,11 @@
 ## ディレクトリ構成
 
 ```
-森さんニュース/
+company-news-to-slack/
 ├── .github/workflows/company-news.yml   # GitHub Actions cron 設定（月水金 朝8時JST）
 ├── .env.example                          # 環境変数テンプレート
 ├── .env                                  # 実際のWebhook URL（gitignore対象）
 ├── .gitignore
-├── AI上場企業ベンチマーク_202604_v2.xlsx   # 元データ（参考）
 ├── companies.json                        # 監視対象企業リスト（これを編集）
 ├── company_news_to_slack.js              # 本体スクリプト
 ├── package.json
@@ -28,7 +27,7 @@
 ### 1. 依存をインストール
 
 ```bash
-cd "/Users/kanta_mac/eleand/RA/森さんニュース"
+cd path/to/company-news-to-slack
 npm install
 ```
 
@@ -55,7 +54,7 @@ npm start     # Slackへ実際に送信
 ### 1. GitHubリポジトリを用意
 
 ```bash
-cd "/Users/kanta_mac/eleand/RA/森さんニュース"
+cd path/to/company-news-to-slack
 git init
 git add .
 git commit -m "initial commit"
@@ -264,4 +263,4 @@ A. ローカル実行は `.env`、GitHub Actions は Secrets の `SLACK_WEBHOOK_
 ## ライセンス / メモ
 
 - 社内用途想定。Google News RSS は Google の規約に従って使用してください。
-- 元データ：`AI上場企業ベンチマーク_202604_v2.xlsx`（2026年4月時点）。カテゴリ「AI活用大手」「AIインフラ」は空欄なので、必要に応じて手動で `companies.json` に追記してください。
+- `companies.json` の初期リストは2026年4月時点のAI関連上場企業25社。必要に応じて自由に追記・差し替えてください。
