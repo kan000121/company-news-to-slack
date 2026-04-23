@@ -12,9 +12,18 @@ const DRY_RUN = process.env.DRY_RUN === '1';
  * 設定
  * =========================
  */
-const LOOKBACK_DAYS = 7;          // 直近 N 日以内の記事のみ採用
 const PER_COMPANY_LIMIT = 2;      // 企業ごとの最大表示件数
 const SLACK_CHUNK_LIMIT = 38000;  // 1メッセージのおおよその上限（Slack 40000）
+const BUFFER_HOURS = 1;           // cron遅延に対する取りこぼし防止バッファ
+
+// 曜日ごとの取得期間（前回配信以降の内容だけを拾い、被りを避ける）
+// cron: 月水金 朝8:00 JST
+const SCHEDULE_RULES = {
+  Mon: { hoursBack: 72, prevLabel: '金曜' }, // 前回=金曜 → 金土日分
+  Wed: { hoursBack: 48, prevLabel: '月曜' }, // 前回=月曜 → 月火分
+  Fri: { hoursBack: 48, prevLabel: '水曜' }  // 前回=水曜 → 水木分
+};
+const DEFAULT_RULE = { hoursBack: 72, prevLabel: '直近72時間' };
 
 // 一般語と衝突しやすい・短すぎる社名は補強クエリを当てる
 const QUERY_OVERRIDES = {
@@ -87,12 +96,26 @@ function uniqBy(items, keyFn) {
   return out;
 }
 
-function withinLookback(item, days) {
+function withinLookback(item, cutoffMs) {
   const iso = item.isoDate || item.pubDate;
   if (!iso) return false;
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return false;
-  return (Date.now() - t) <= days * 24 * 60 * 60 * 1000;
+  return t >= cutoffMs;
+}
+
+function getJstWeekday() {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tokyo',
+    weekday: 'short'
+  }).format(new Date());
+}
+
+function getScheduleContext() {
+  const rule = SCHEDULE_RULES[getJstWeekday()] || DEFAULT_RULE;
+  const totalHours = rule.hoursBack + BUFFER_HOURS;
+  const cutoff = new Date(Date.now() - totalHours * 60 * 60 * 1000);
+  return { cutoff, rule };
 }
 
 function formatDate(iso) {
@@ -109,12 +132,12 @@ function formatDate(iso) {
  * ニュース取得
  * =========================
  */
-async function fetchNews(company) {
+async function fetchNews(company, cutoffMs) {
   const query = buildQuery(company);
   try {
     const feed = await parser.parseURL(buildURL(query));
     const fresh = (feed.items || [])
-      .filter(it => withinLookback(it, LOOKBACK_DAYS))
+      .filter(it => withinLookback(it, cutoffMs))
       .map(it => ({
         title: clean(it.title),
         link: it.link,
@@ -180,11 +203,12 @@ async function main() {
   const companies = JSON.parse(fs.readFileSync(companiesPath, 'utf-8'));
 
   const today = formatDate(new Date().toISOString());
-  console.log(`[INFO] ${companies.length}社をチェック（lookback=${LOOKBACK_DAYS}日）`);
+  const { cutoff, rule } = getScheduleContext();
+  console.log(`[INFO] ${companies.length}社をチェック（基準=${rule.prevLabel} / cutoff=${cutoff.toISOString()}）`);
 
   // 並列取得（Google News RSSは軽い）
   const results = await Promise.all(
-    companies.map(async c => ({ company: c, news: await fetchNews(c) }))
+    companies.map(async c => ({ company: c, news: await fetchNews(c, cutoff.getTime()) }))
   );
 
   const hits = results.filter(r => r.news.length > 0);
@@ -195,7 +219,7 @@ async function main() {
     return;
   }
 
-  const header = `🏢 AI上場企業ニュースウォッチ (${today})\n直近${LOOKBACK_DAYS}日以内 / ヒット ${hits.length}/${companies.length}社\n\n`;
+  const header = `🏢 AI上場企業ニュースウォッチ (${today})\n前回配信(${rule.prevLabel})以降 / ヒット ${hits.length}/${companies.length}社\n\n`;
 
   const blocks = hits.map(({ company, news }) => {
     const code = company.code ? ` (${company.code})` : '';
