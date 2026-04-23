@@ -1,0 +1,30 @@
+name: Company News to Slack
+
+on:
+  schedule:
+    # 月・水・金 朝8:00 JST (= 日・火・木 23:00 UTC)
+    # cronフォーマット: 分 時 日 月 曜日（0=日,1=月,2=火,3=水,4=木,5=金,6=土）
+    - cron: '0 23 * * 0,2,4'
+  workflow_dispatch: # 手動実行もOKに
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Send company news to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: node company_news_to_slack.js

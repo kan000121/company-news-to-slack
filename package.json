@@ -1,0 +1,14 @@
+{
+  "name": "mori-company-news",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI上場企業ベンチマーク企業のニュースをSlackへ配信",
+  "scripts": {
+    "start": "node company_news_to_slack.js",
+    "dry": "DRY_RUN=1 node company_news_to_slack.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "rss-parser": "^3.13.0"
+  }
+}
